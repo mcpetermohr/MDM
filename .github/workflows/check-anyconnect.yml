@@ -1,0 +1,45 @@
+name: Check Cisco AnyConnect releases
+
+on:
+  schedule:
+    - cron: '15 9 * * *'
+      timezone: Europe/Copenhagen
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: anyconnect-release-history
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Check release notes
+        id: releases
+        run: bash check-anyconnect.sh
+
+      - name: Save history in the repository
+        run: |
+          git add data/anyconnect-history.csv data/anyconnect-latest.json
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Update Cisco AnyConnect release history'
+            git push origin HEAD:${{ github.event.repository.default_branch }}
+          fi
+
+      - name: Write run summary
+        env:
+          STATUS: ${{ steps.releases.outputs.status }}
+          LATEST: ${{ steps.releases.outputs.latest }}
+          PREVIOUS: ${{ steps.releases.outputs.previous }}
+        run: |
+          printf 'Status: **%s**\n\nLatest documented release: **%s**\n\nPrevious: %s\n' \
+            "$STATUS" "$LATEST" "$PREVIOUS" >> "$GITHUB_STEP_SUMMARY"
